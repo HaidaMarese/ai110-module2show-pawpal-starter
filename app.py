@@ -16,7 +16,7 @@ st.set_page_config(
 st.title("🐾 PawPal+")
 st.write("Add your pets and organize their care tasks.")
 
-# Keep the same Owner object between Streamlit interactions.
+# The same Owner object between Streamlit interactions.
 if "owner" not in st.session_state:
     st.session_state.owner = Owner(
         name="Haida",

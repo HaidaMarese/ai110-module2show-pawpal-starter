@@ -1,7 +1,7 @@
 """Core classes for the PawPal+ pet care planner."""
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 
 @dataclass
@@ -90,7 +90,24 @@ class Scheduler:
         due_date: date | None = None,
     ) -> list[tuple[Pet, Task]]:
         """Return pet-task pairs matching the optional filters."""
-        pass
+        matching_tasks = []
+
+        for pet, task in self.owner.get_all_tasks():
+            if (
+                pet_name is not None
+                and pet.name.casefold() != pet_name.casefold()
+            ):
+                continue
+
+            if completed is not None and task.completed != completed:
+                continue
+
+            if due_date is not None and task.due_date != due_date:
+                continue
+
+            matching_tasks.append((pet, task))
+
+        return matching_tasks
 
     def generate_daily_plan(
         self,
@@ -101,8 +118,62 @@ class Scheduler:
 
     def mark_task_complete(self, pet: Pet, task: Task) -> None:
         """Complete a task and create its next occurrence if recurring."""
-        pass
+        if not any(owned_pet is pet for owned_pet in self.owner.pets):
+            raise ValueError("This pet does not belong to this owner.")
+
+        if not any(pet_task is task for pet_task in pet.tasks):
+            raise ValueError("This task does not belong to this pet.")
+
+        # Avoid creating duplicate occurrences on repeated completion.
+        if task.completed:
+            return
+
+        task.mark_complete()
+
+        if task.frequency == "daily":
+            interval = timedelta(days=1)
+        elif task.frequency == "weekly":
+            interval = timedelta(days=7)
+        else:
+            return
+
+        next_task = Task(
+            description=task.description,
+            due_date=task.due_date + interval,
+            time=task.time,
+            duration_minutes=task.duration_minutes,
+            priority=task.priority,
+            frequency=task.frequency,
+        )
+
+        pet.add_task(next_task)
 
     def detect_conflicts(self) -> list[str]:
-        """Return warnings for incomplete tasks sharing a date and time."""
-        pass
+        """Warn when incomplete tasks share the same date and start time."""
+        warnings = []
+        tasks_by_slot = {}
+
+        for pet, task in self.owner.get_all_tasks():
+            if task.completed:
+                continue
+
+            slot = (task.due_date, task.time)
+
+            if slot not in tasks_by_slot:
+                tasks_by_slot[slot] = []
+
+            tasks_by_slot[slot].append((pet, task))
+
+        for (due_date, time), tasks in sorted(tasks_by_slot.items()):
+            if len(tasks) > 1:
+                descriptions = [
+                    f"{pet.name}: {task.description}"
+                    for pet, task in tasks
+                ]
+
+                warnings.append(
+                    f"Conflict on {due_date.isoformat()} at {time}: "
+                    + "; ".join(descriptions)
+                )
+
+        return warnings
