@@ -349,3 +349,8 @@ The project follows a CLI-first workflow:
 7. Add task editing and daily planning.
 8. Connect scheduling features to browser controls.
 9. Update the UML, README, and reflection to match the implementation.
+
+## Author
+
+**Haida Makouangou**  
+CodePath AI110 — Fall 2026
