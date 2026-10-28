@@ -1,44 +1,32 @@
 # PawPal+ (Module 2 Project)
 
-PawPal+ is a pet care management project built with Python and Streamlit.
-It helps owners organize care activities across multiple pets.
+PawPal+ is a pet care planner built with Python and Streamlit.
+It helps owners manage tasks across multiple pets and generate daily
+plans based on task priority and available care time.
 
 ## Scenario
 
 A busy pet owner needs help staying consistent with feeding, walks,
 medication, grooming, and appointments.
 
-The completed application will organize tasks, consider available time
-and priority, and explain the resulting daily plan.
+PawPal+ organizes these activities, displays schedules, warns about
+matching start times, and explains which tasks fit the daily time budget.
 
-## Current Progress — Phase 4
+## Features
 
-Implemented:
-
-- Represent care activities using a Task dataclass.
-- Store separate task lists for each Pet.
-- Manage multiple pets through an Owner.
-- Retrieve tasks across all pets using Owner.get_all_tasks().
-- Sort tasks chronologically by due date and time.
-- Filter tasks by pet name, completion status, and due date.
+- Store owner information and available care time.
+- Add multiple pets with separate task lists.
+- Add and edit tasks with dates, times, durations, and priorities.
+- Display tasks chronologically across all pets.
+- Filter schedules by pet name, date, and completion status.
 - Mark tasks complete.
-- Create the next occurrence when a daily or weekly task is completed.
-- Prevent duplicate occurrences when the same task is completed again.
-- Detect incomplete tasks sharing the same date and start time.
-- Connect the Streamlit interface to the backend for adding pets and tasks.
-- Keep owner, pet, and task data in session state during app interactions.
-- Display today's tasks in chronological order in the browser.
-- Demonstrate scheduling behavior through a terminal script.
-- Verify task behavior, recurrence, and conflicts with six automated tests.
-
-Still planned:
-
-- Implement task editing.
-- Generate daily plans based on available time and priority.
-- Add filtering, task completion, and conflict warnings to the interface.
-- Add dedicated automated tests for sorting and filtering.
-- Test daily planning once implemented.
-- Finalize the UML and project reflection.
+- Create the next occurrence of daily and weekly tasks.
+- Prevent repeated completion from creating duplicate occurrences.
+- Warn when incomplete tasks share the same date and start time.
+- Generate daily plans within the owner's available minutes.
+- Explain selected and skipped tasks.
+- Preserve data during interactions in the current Streamlit session.
+- Verify backend behavior with 12 automated tests.
 
 ## Getting Started
 
@@ -91,31 +79,47 @@ python -m streamlit run app.py
 
 Open the local URL printed in the terminal.
 
-## Implementation Summary
+### Run the Tests
+
+```bash
+python -m pytest
+```
+
+## System Design
+
+The backend uses four classes: Task, Pet, Owner, and Scheduler.
+
+The final Mermaid UML source is available in
+[diagrams/uml_final.mmd](diagrams/uml_final.mmd).
+
+The original draft is kept in
+[diagrams/uml.mmd](diagrams/uml.mmd).
 
 ### Task
 
-Task represents a single care activity. It stores:
+Task represents one care activity and stores:
 
 - Description
 - Due date
-- Time
+- Start time
 - Duration in minutes
-- Priority
+- Priority: low, medium, or high
 - Frequency: once, daily, or weekly
 - Completion status
 
-`Task.mark_complete()` changes the completion status to `True`.
+`Task.mark_complete()` changes completion status to `True`.
 
-`Task.update_details()` remains a stub.
+`Task.update_details()` updates task details while preserving completion
+status. It rejects blank descriptions, nonpositive durations, and
+unsupported priority or frequency values.
 
 ### Pet
 
 Pet stores a name, species, and task list.
 
-`Pet.add_task()` adds a Task to that pet.
+`Pet.add_task()` adds a task to that pet.
 
-Each pet receives its own task list through
+Each pet receives an independent task list through
 `field(default_factory=list)`.
 
 ### Owner
@@ -124,28 +128,64 @@ Owner stores a name, available care time in minutes, and a pet list.
 
 `Owner.add_pet()` adds a pet.
 
-`Owner.get_all_tasks()` returns `(pet, task)` pairs across all pets.
-This keeps each task connected to the pet that needs care.
+`Owner.get_all_tasks()` returns `(pet, task)` pairs across all pets,
+keeping each task connected to the pet that needs care.
 
 ### Scheduler
 
 Scheduler receives an Owner and retrieves tasks through
 `Owner.get_all_tasks()`.
 
-Its implemented methods support:
+It provides sorting, filtering, recurring task completion, conflict
+warnings, and daily planning.
 
-- Sorting by due date and time.
-- Filtering by pet name, completion status, and due date.
-- Completing tasks and creating recurring occurrences.
-- Detecting tasks with identical dates and start times.
+## Smarter Scheduling
 
-`Scheduler.generate_daily_plan()` remains a stub. Available care time
-and task priority are stored but do not yet control task selection.
+| Feature | Method | Behavior |
+|---------|--------|----------|
+| Chronological sorting | `Scheduler.sort_by_time()` | Orders tasks across all pets by due date and time. |
+| Filtering | `Scheduler.filter_tasks()` | Filters by pet name, completion status, and due date. Preserves insertion order. |
+| Task editing | `Task.update_details()` | Updates care details while preserving completion status. |
+| Conflict warnings | `Scheduler.detect_conflicts()` | Warns when incomplete tasks share the same date and start time, including across pets. |
+| Recurring tasks | `Scheduler.mark_task_complete()` | Completes the original task and creates its next daily or weekly occurrence. |
+| Daily planning | `Scheduler.generate_daily_plan()` | Selects pending tasks by priority within the available-time budget and returns explanations. |
 
-Times use zero-padded 24-hour `HH:MM` strings, such as `08:00` and
-`18:00`. Automatic backend time-format validation is not yet implemented.
+### Daily Planning Rules
 
-## Sample Output
+1. Consider only incomplete tasks due on the selected date.
+2. Try high-priority tasks first, then medium and low.
+3. For equal priorities, consider earlier start times first.
+4. Select a task when its duration fits the remaining minutes.
+5. Skip tasks that do not fit and continue checking other tasks.
+6. Display selected tasks chronologically.
+7. Explain each selection or skipped task.
+
+Daily planning does not change task dates, start times, or completion
+status.
+
+### Scheduling Tradeoffs and Limitations
+
+- Conflict detection checks identical dates and start times. It does
+  not detect overlapping durations with different start times.
+- Daily planning limits total care minutes but does not resolve
+  conflicts or move tasks into new time slots.
+- Priority-based selection uses a greedy approach. It does not
+  guarantee the largest possible number of tasks or the best possible
+  combination.
+- Recurrence is calculated from the original due date: one day later
+  for daily tasks and seven days later for weekly tasks. An overdue
+  task can therefore create another overdue occurrence.
+- Times use zero-padded 24-hour `HH:MM` strings. The browser supplies
+  this format; automatic backend time-format validation is not implemented.
+- Pet-name filtering is case-insensitive. Pets with matching names
+  are included together.
+- Editing a completed task does not update a future occurrence that
+  has already been created.
+
+Use `Scheduler.mark_task_complete(pet, task)` for recurring tasks.
+Calling `Task.mark_complete()` directly changes status only.
+
+## Sample CLI Output
 
 Run:
 
@@ -153,7 +193,7 @@ Run:
 python main.py
 ```
 
-Verified terminal output from a run on October 27, 2026:
+Verified output from a run on October 27, 2026:
 
 ```text
 Today's Schedule
@@ -175,114 +215,126 @@ Complete Luna's Weekly Grooming
 ------------------------------------------------------------
 2026-10-27 | 09:00 | Luna | Grooming | Complete
 2026-11-03 | 09:00 | Luna | Grooming | Pending
+
+Daily Plan — 30-Minute Budget
+------------------------------------------------------------
+08:00 | Luna | Breakfast | 10 min | high
+09:00 | Mochi | Morning walk | 20 min | high
+
+Plan Explanations
+Selected Luna: Breakfast (high priority, 10 min); 20 min remaining.
+Selected Mochi: Morning walk (high priority, 20 min); 0 min remaining.
+Skipped Mochi: Evening walk: needs 20 min, but only 0 min remain.
 ```
 
 Dates change because the demo uses `date.today()`.
 
-The demo first displays three tasks in chronological order. It then
-filters Mochi's pending tasks, preserving their insertion order.
+The filtered section preserves insertion order. The schedule and
+selected daily plan display tasks chronologically.
 
-Next, it adds Luna's grooming task at the same time as Mochi's morning
-walk to demonstrate a conflict warning. Finally, it completes the
-weekly grooming task and displays its next occurrence seven days later.
-
-The demo does not yet select tasks using the owner's available-time
-budget.
+The grooming task is added after the initial schedule is printed,
+then completed before the daily plan is generated.
 
 ## Testing PawPal+
 
-Run the tests:
+Run:
 
 ```bash
 python -m pytest
 ```
 
-The six tests cover:
+The 12 tests cover:
 
-- Task completion changes the completion status.
-- Adding a task increases a pet's task count and stores that task.
-- Daily completion creates a pending occurrence one day later.
-- Weekly completion creates a pending occurrence seven days later.
-- Tasks for different pets at the same date and time produce a warning.
-- Completed tasks and tasks on different dates do not produce a conflict.
+1. Task completion changes completion status.
+2. Task addition stores the supplied task.
+3. Daily completion creates the next occurrence.
+4. Weekly completion creates the next occurrence.
+5. Tasks across pets with matching dates and times produce a warning.
+6. Completed tasks and tasks on different dates do not conflict.
+7. Task editing updates details and preserves completion status.
+8. Daily planning prioritizes tasks within the time budget.
+9. Daily planning skips oversized tasks and excludes completed tasks
+   and tasks on other dates.
+10. A zero-minute budget selects no tasks.
+11. Sorting works across pets and dates.
+12. Filtering combines pet name, completion status, and date.
 
-The recurrence tests also check that task details are preserved and
+The recurrence tests also verify that task details are preserved and
 repeated completion does not create duplicate occurrences.
 
 Verified test result:
 
 ```text
-6 passed in 0.06s
+12 passed in 0.18s
 ```
 
-Sorting and filtering have been demonstrated through the CLI.
-Dedicated automated tests for those methods are still planned.
-
-## Smarter Scheduling
-
-| Feature | Method | Behavior |
-|---------|--------|----------|
-| Chronological sorting | `Scheduler.sort_by_time()` | Orders tasks across all pets by due date and time. |
-| Filtering | `Scheduler.filter_tasks()` | Filters by pet name, completion status, and due date. Preserves insertion order. |
-| Conflict warnings | `Scheduler.detect_conflicts()` | Warns when incomplete tasks share the same date and start time, including across pets. |
-| Recurring task completion | `Scheduler.mark_task_complete()` | Completes a task and creates its next daily or weekly occurrence. Repeated completion creates no duplicates. |
-| Daily planning | `Scheduler.generate_daily_plan()` | Planned; currently a stub. |
-
-### Scheduling Tradeoffs
-
-Conflict detection checks identical dates and start times. It does not
-detect overlapping durations when tasks start at different times.
-
-Recurring occurrences are calculated from the original task's due date:
-one day later for daily tasks and seven days later for weekly tasks.
-
-Use `Scheduler.mark_task_complete(pet, task)` to complete recurring tasks.
-Calling `Task.mark_complete()` directly updates status only.
+These automated tests exercise backend behavior. Browser interactions
+are checked separately.
 
 ## Demo Walkthrough
 
 ### Terminal Demo
 
 1. Run `python main.py`.
-2. The script creates an Owner named Haida.
+2. The script creates Haida as the owner.
 3. It adds Mochi the dog and Luna the cat.
-4. It adds three care tasks out of chronological order.
-5. Scheduler gathers tasks across both pets and displays them by time.
-6. The script displays Mochi's pending tasks for today.
-7. It adds a weekly grooming task that conflicts with Mochi's walk.
+4. It adds three tasks out of chronological order.
+5. Scheduler displays the combined schedule chronologically.
+6. The script filters Mochi's pending tasks.
+7. It adds Luna's weekly grooming at the same time as Mochi's walk.
 8. Scheduler prints a conflict warning.
-9. The script completes grooming and displays the next weekly occurrence.
+9. Completing grooming creates the next weekly occurrence.
+10. A 30-minute budget selects Breakfast and Morning walk.
+11. Explanations show why Evening walk was skipped.
 
 ### Browser Demo
 
 1. Run `python -m streamlit run app.py`.
-2. Enter the owner's name and available care time, then click Save owner.
-3. Enter a pet name and species, then click Add pet.
-4. Add another pet to demonstrate multiple-pet support.
-5. In Schedule a Task, select the pet and enter the task details.
-6. Choose today's date and click Add task.
-7. Add another task with a different time.
-8. Check Today's Schedule to see the tasks displayed chronologically.
+2. Enter the owner's name and available care time, then click
+   **Save owner**.
+3. Add Mochi as a dog and Luna as a cat.
+4. Under **Schedule a Task**, add these tasks using the same date:
 
-The Owner object is stored in `st.session_state` so pets and tasks
-remain available during interactions in the current session.
+   | Pet | Task | Time | Minutes | Priority | Frequency |
+   |-----|------|------|---------|----------|-----------|
+   | Luna | Breakfast | 08:00 | 10 | high | daily |
+   | Mochi | Morning walk | 09:00 | 20 | high | daily |
+   | Mochi | Evening walk | 18:00 | 20 | medium | once |
 
-Data is not saved to disk and may be lost when the session ends or
-the application restarts.
+5. Under **View Schedule**, select that date to see tasks in time order.
+6. Try the pet and status filters.
+7. Under **Edit or Complete a Task**, select a task, change its details,
+   and click **Save task changes**.
+8. To demonstrate a conflict, temporarily change Evening walk to 09:00
+   on the same date. A warning identifies the matching start times.
+   Restore its time to 18:00 afterward.
+9. Save an owner budget of 30 minutes and generate a daily plan for
+   the task date. Breakfast and Morning walk fit; Evening walk is skipped.
+10. Select Breakfast and click **Mark selected task complete**.
+11. View the original date with status **Complete** to see the completed task.
+12. View the following date with status **Pending** to see its next
+    daily occurrence.
 
-Filtering, recurring-task completion, and conflict warnings are currently
-demonstrated through the backend and CLI. Their interface controls
-are still planned.
+## Session Storage
+
+The Owner object is stored in `st.session_state`, keeping pets and tasks
+available during interactions in the current browser session.
+
+Data is not saved to disk and may be lost when the session ends or the
+application restarts.
 
 ## Project Files
 
-- `pawpal_system.py` — Backend classes, sorting, filtering, recurrence, and conflict detection.
-- `main.py` — Terminal demonstration using two pets and scheduling examples.
-- `app.py` — Streamlit interface for owner information, pets, tasks, and today's schedule.
-- `diagrams/uml.mmd` — Working Mermaid class diagram; final review is still planned.
-- `tests/test_pawpal.py` — Six automated tests for task behavior, recurrence, and conflicts.
-- `reflection.md` — Design decisions, tradeoffs, verification, and AI collaboration reflection.
-- `requirements.txt` — Project dependencies.
+| File | Purpose |
+|------|---------|
+| `pawpal_system.py` | Backend classes and scheduling logic. |
+| `main.py` | CLI demonstration across two pets. |
+| `app.py` | Streamlit interface for pets, tasks, schedules, and daily plans. |
+| `diagrams/uml.mmd` | Original UML draft. |
+| `diagrams/uml_final.mmd` | Final UML matching the implemented classes. |
+| `tests/test_pawpal.py` | Twelve automated backend tests. |
+| `reflection.md` | Design decisions, tradeoffs, verification, and AI collaboration. |
+| `requirements.txt` | Project dependencies. |
 
 ## Development Approach
 
@@ -291,9 +343,9 @@ The project follows a CLI-first workflow:
 1. Design the classes and relationships in UML.
 2. Create matching Python skeletons.
 3. Implement core behavior.
-4. Verify behavior with a terminal demo and automated tests.
-5. Connect the backend to Streamlit.
-6. Implement and verify scheduling algorithms.
-7. Complete daily planning and task editing.
-8. Connect the remaining scheduling features to the interface.
-9. Update the final UML, README, and reflection to match the application.
+4. Verify the backend with a terminal demo and automated tests.
+5. Connect the backend to Streamlit using session state.
+6. Implement sorting, filtering, recurrence, and conflict warnings.
+7. Add task editing and daily planning.
+8. Connect scheduling features to browser controls.
+9. Update the UML, README, and reflection to match the implementation.

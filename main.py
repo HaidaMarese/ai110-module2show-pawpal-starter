@@ -6,7 +6,7 @@ from pawpal_system import Owner, Pet, Scheduler, Task
 
 
 def main():
-    """Demonstrate sorting, filtering, conflicts, and weekly recurrence."""
+    """Demonstrate sorting, filtering, conflicts, recurrence, and planning."""
     today = date.today()
 
     owner = Owner(name="Haida", available_minutes=60)
@@ -106,6 +106,28 @@ def main():
                 f"{task.due_date} | {task.time} | "
                 f"{pet.name} | {task.description} | {status}"
             )
+
+    # The budget to demonstrate priority-based selection.
+    owner.available_minutes = 30
+
+    print("\nDaily Plan — 30-Minute Budget")
+    print("-" * 60)
+
+    selected, explanations = scheduler.generate_daily_plan(today)
+
+    if selected:
+        for pet, task in selected:
+            print(
+                f"{task.time} | {pet.name} | {task.description} | "
+                f"{task.duration_minutes} min | {task.priority}"
+            )
+    else:
+        print("No tasks selected.")
+
+    print("\nPlan Explanations")
+
+    for explanation in explanations:
+        print(explanation)
 
 
 if __name__ == "__main__":

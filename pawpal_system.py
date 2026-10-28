@@ -29,8 +29,25 @@ class Task:
         priority: str,
         frequency: str,
     ) -> None:
-        """Update this task's care and scheduling details."""
-        pass
+        """Update task details while preserving completion status."""
+        if not description.strip():
+            raise ValueError("Task description cannot be empty.")
+
+        if duration_minutes <= 0:
+            raise ValueError("Task duration must be greater than zero.")
+
+        if priority not in ("low", "medium", "high"):
+            raise ValueError("Priority must be low, medium, or high.")
+
+        if frequency not in ("once", "daily", "weekly"):
+            raise ValueError("Frequency must be once, daily, or weekly.")
+
+        self.description = description.strip()
+        self.due_date = due_date
+        self.time = time
+        self.duration_minutes = duration_minutes
+        self.priority = priority
+        self.frequency = frequency
 
 
 @dataclass
@@ -113,8 +130,62 @@ class Scheduler:
         self,
         due_date: date,
     ) -> tuple[list[tuple[Pet, Task]], list[str]]:
-        """Return selected tasks and explanations within the time budget."""
-        pass
+        """Select pending tasks by priority within the daily time budget."""
+        if self.owner.available_minutes < 0:
+            raise ValueError("Available care time cannot be negative.")
+
+        priority_order = {"high": 0, "medium": 1, "low": 2}
+
+        candidates = self.filter_tasks(
+            completed=False,
+            due_date=due_date,
+        )
+
+        for pet, task in candidates:
+            if task.duration_minutes <= 0:
+                raise ValueError("Task duration must be greater than zero.")
+
+            if task.priority not in priority_order:
+                raise ValueError("Priority must be low, medium, or high.")
+
+        # Consider higher priorities first, then earlier start times.
+        candidates = sorted(
+            candidates,
+            key=lambda pair: (
+                priority_order[pair[1].priority],
+                pair[1].time,
+            ),
+        )
+
+        selected = []
+        explanations = []
+        remaining_minutes = self.owner.available_minutes
+
+        for pet, task in candidates:
+            label = f"{pet.name}: {task.description}"
+
+            if task.duration_minutes <= remaining_minutes:
+                selected.append((pet, task))
+                remaining_minutes -= task.duration_minutes
+
+                explanations.append(
+                    f"Selected {label} ({task.priority} priority, "
+                    f"{task.duration_minutes} min); "
+                    f"{remaining_minutes} min remaining."
+                )
+            else:
+                explanations.append(
+                    f"Skipped {label}: needs {task.duration_minutes} min, "
+                    f"but only {remaining_minutes} min remain."
+                )
+
+        # Display the selected tasks chronologically.
+        selected = sorted(
+            selected,
+            key=lambda pair: pair[1].time,
+        )
+
+        return selected, explanations
 
     def mark_task_complete(self, pet: Pet, task: Task) -> None:
         """Complete a task and create its next occurrence if recurring."""
