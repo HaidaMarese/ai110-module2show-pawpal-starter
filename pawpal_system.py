@@ -1,4 +1,4 @@
-"""Core class skeletons for the PawPal+ pet care planner."""
+"""Core classes for the PawPal+ pet care planner."""
 
 from dataclasses import dataclass, field
 from datetime import date
@@ -18,7 +18,7 @@ class Task:
 
     def mark_complete(self) -> None:
         """Mark this task as completed."""
-        pass
+        self.completed = True
 
     def update_details(
         self,
@@ -43,7 +43,7 @@ class Pet:
 
     def add_task(self, task: Task) -> None:
         """Add a task to this pet."""
-        pass
+        self.tasks.append(task)
 
 
 @dataclass
@@ -56,11 +56,17 @@ class Owner:
 
     def add_pet(self, pet: Pet) -> None:
         """Add a pet to this owner."""
-        pass
+        self.pets.append(pet)
 
     def get_all_tasks(self) -> list[tuple[Pet, Task]]:
         """Return pet-task pairs across all of this owner's pets."""
-        pass
+        all_tasks = []
+
+        for pet in self.pets:
+            for task in pet.tasks:
+                all_tasks.append((pet, task))
+
+        return all_tasks
 
 
 class Scheduler:
@@ -72,7 +78,10 @@ class Scheduler:
 
     def sort_by_time(self) -> list[tuple[Pet, Task]]:
         """Return pet-task pairs ordered by due date and time."""
-        pass
+        return sorted(
+            self.owner.get_all_tasks(),
+            key=lambda pair: (pair[1].due_date, pair[1].time),
+        )
 
     def filter_tasks(
         self,
